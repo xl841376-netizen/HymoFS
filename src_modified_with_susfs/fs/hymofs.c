@@ -26,6 +26,7 @@
 #include <linux/miscdevice.h>
 #include <linux/cred.h>
 #include <linux/uidgid.h>
+#include <linux/vmalloc.h>
 
 #include "hymofs.h"
 #include "hymofs_ioctl.h"
@@ -300,9 +301,51 @@ static long hymo_ioctl(struct file *file, unsigned int cmd, unsigned long arg) {
     return ret;
 }
 
+static ssize_t hymo_read(struct file *file, char __user *buf, size_t count, loff_t *ppos) {
+    char *kbuf;
+    size_t size = 128 * 1024;
+    size_t written = 0;
+    int bkt;
+    struct hymo_entry *entry;
+    struct hymo_hide_entry *hide_entry;
+    struct hymo_inject_entry *inject_entry;
+    unsigned long flags;
+    ssize_t ret;
+
+    // printk(KERN_INFO "hymo_read: count=%zu, ppos=%lld\n", count, *ppos);
+
+    kbuf = vmalloc(size);
+    if (!kbuf) return -ENOMEM;
+    memset(kbuf, 0, size);
+
+    spin_lock_irqsave(&hymo_lock, flags);
+    
+    written += scnprintf(kbuf + written, size - written, "HymoFS Protocol: %d\n", HYMO_PROTOCOL_VERSION);
+    written += scnprintf(kbuf + written, size - written, "HymoFS Config Version: %d\n", atomic_read(&hymo_version));
+
+    hash_for_each(hymo_paths, bkt, entry, node) {
+        if (written >= size) break;
+        written += scnprintf(kbuf + written, size - written, "add %s %s %d\n", entry->src, entry->target, entry->type);
+    }
+    hash_for_each(hymo_hide_paths, bkt, hide_entry, node) {
+        if (written >= size) break;
+        written += scnprintf(kbuf + written, size - written, "hide %s\n", hide_entry->path);
+    }
+    hash_for_each(hymo_inject_dirs, bkt, inject_entry, node) {
+        if (written >= size) break;
+        written += scnprintf(kbuf + written, size - written, "inject %s\n", inject_entry->dir);
+    }
+    spin_unlock_irqrestore(&hymo_lock, flags);
+
+    ret = simple_read_from_buffer(buf, count, ppos, kbuf, written);
+    vfree(kbuf);
+    return ret;
+}
+
 static const struct file_operations hymo_misc_fops = {
     .owner = THIS_MODULE,
     .unlocked_ioctl = hymo_ioctl,
+    .read = hymo_read,
 };
 
 static struct miscdevice hymo_misc_dev = {
