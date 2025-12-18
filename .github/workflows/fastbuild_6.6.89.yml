@@ -180,6 +180,10 @@ jobs:
           cp ./susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
           cp ./SukiSU_patch/69_hide_stuff.patch ./common/
           cd ./common
+          # Fix missing struct kstat declaration in susfs.h
+          sed -i '/#include <linux\/susfs_def.h>/a struct kstat;' ./include/linux/susfs.h
+          # Fix missing ksu_seccomp_allow_cache in setuid_hook.c
+          sed -i '/extern void disable_seccomp(void);/a static inline void ksu_seccomp_allow_cache(void *filter, int syscall_nr) { disable_seccomp(); }' ../KernelSU/kernel/setuid_hook.c
           patch -p1 < 50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch || true
           patch -p1 < 69_hide_stuff.patch || true
 
