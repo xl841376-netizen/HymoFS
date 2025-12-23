@@ -492,9 +492,10 @@ jobs:
           fi
         env:
           CHATID: ${{secrets.TELEGRAM_CHAT_ID}}
+          MESSAGE_THREAD_ID: ${{secrets.MESSAGE_THREAD_ID}}
           BOT_TOKEN: ${{secrets.TELEGRAM_BOT_TOKEN}}
           KernelVer: ${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}
-          DEVICE: SM8750设备
+          DEVICE: 欧真加SM8750设备
           KPM: Off
           LZ4KD: Off
           BBR: Off
