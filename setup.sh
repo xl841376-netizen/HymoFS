@@ -21,7 +21,6 @@ function show_help {
     echo "Options:"
     echo "  kernel-dir <path>   Kernel source root directory (Default: detects common/ or current dir)"
     echo "  defconfig <path>    Path to defconfig file (Relative to kernel directory)"
-    echo "  with-susfs          Enable SUSFS compatibility mode"
     echo "  branch <name>       Specify HymoFS branch (Default: main)"
     echo "  repo <url>          Specify HymoFS repository URL"
     echo "  help                Show this help message"
@@ -74,20 +73,6 @@ else
     exit 1
 fi
 
-# Auto-detect SUSFS
-if [ "$WITH_SUSFS" = false ]; then
-    if [ -d "$KERNEL_DIR/fs/susfs" ]; then
-        echo ">>> Detected SUSFS source in fs/susfs."
-        WITH_SUSFS=true
-    elif grep -q "CONFIG_SUSFS=y" "$TARGET_DEFCONFIG"; then
-        echo ">>> Detected CONFIG_SUSFS=y in defconfig."
-        WITH_SUSFS=true
-    elif grep -q "susfs" "$KERNEL_DIR/fs/readdir.c"; then
-        echo ">>> Detected SUSFS code in fs/readdir.c."
-        WITH_SUSFS=true
-    fi
-fi
-
 # Auto-detect branch if not manually specified
 if [ "$MANUAL_BRANCH" = false ]; then
     if [ -f "$KERNEL_DIR/Makefile" ]; then
@@ -136,13 +121,8 @@ else
     exit 1
 fi
 
-if [ "$WITH_SUSFS" = true ]; then
-    PATCH_FILE="$WORK_DIR/HymoFS/patch/hymofs_with_susfs.patch"
-    echo ">>> Mode: SUSFS Compatibility"
-else
-    PATCH_FILE="$WORK_DIR/HymoFS/patch/hymofs.patch"
-    echo ">>> Mode: Standard"
-fi
+PATCH_FILE="$WORK_DIR/HymoFS/patch/hymofs.patch"
+echo ">>> Mode: Standard"
 
 if [ ! -f "$PATCH_FILE" ]; then
     echo "Error: Patch file not found '$PATCH_FILE'"
@@ -175,30 +155,13 @@ fi
 
 echo ">>> Modifying defconfig..."
 
-# Detect KSU
-echo ">>> Checking for KernelSU..."
-HAS_KSU=false
-if [ -d "drivers/kernelsu" ] || [ -d "KernelSU" ]; then
-    HAS_KSU=true
-    echo "    Found KernelSU source directory."
-elif grep -qE "CONFIG_KSU=y|CONFIG_KERNELSU=y" "$TARGET_DEFCONFIG"; then
-    HAS_KSU=true
-    echo "    Found KernelSU config in defconfig."
-fi
-
-if grep -q "CONFIG_HYMOFS=y" "$TARGET_DEFCONFIG"; then
+if grep -q "CONFIG_KSU_HYMOFS=y" "$TARGET_DEFCONFIG"; then
     echo "  [*] defconfig already contains CONFIG_HYMOFS, skipping."
 else
     echo "" >> "$TARGET_DEFCONFIG"
     echo "# HymoFS Support" >> "$TARGET_DEFCONFIG"
-    echo "CONFIG_HYMOFS=y" >> "$TARGET_DEFCONFIG"
-    
-    if [ "$HAS_KSU" = true ]; then
-        echo "CONFIG_HYMOFS_USE_KSU=y" >> "$TARGET_DEFCONFIG"
-        echo "  [*] Added CONFIG_HYMOFS=y and CONFIG_HYMOFS_USE_KSU=y to defconfig"
-    else
-        echo "  [*] Added CONFIG_HYMOFS=y (KSU not detected, CONFIG_HYMOFS_USE_KSU skipped)"
-    fi
+    echo "CONFIG_KSU_HYMOFS=y" >> "$TARGET_DEFCONFIG"
+    echo "CONFIG_KSU_HYMOFS_LSMBPS=y" >> "$TARGET_DEFCONFIG"
 fi
 
 echo ">>> HymoFS integration completed!"
