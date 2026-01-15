@@ -97,61 +97,10 @@ jobs:
             ccache -sv
           fi
 
-      - name: 添加 YukiSU (直接复制 kernel 目录)
-        id: ksu_version
-        run: |
-          cd kernel_workspace
-          echo "正在克隆 YukiSU 仓库..."
-          git clone --depth=1 https://github.com/Anatdx/YukiSU.git
-          
-          echo "  [*] 复制 YukiSU kernel 到 drivers/kernelsu..."
-          mkdir -p ./common/drivers/kernelsu
-          cp -r ./YukiSU/kernel/* ./common/drivers/kernelsu/
-          
-          echo "  [*] 添加 KernelSU 到 drivers Kconfig 和 Makefile..."
-          if ! grep -q "kernelsu/Kconfig" ./common/drivers/Kconfig; then
-              echo 'source "drivers/kernelsu/Kconfig"' >> ./common/drivers/Kconfig
-          fi
-          if ! grep -q "kernelsu" ./common/drivers/Makefile; then
-              echo 'obj-$(CONFIG_KSU) += kernelsu/' >> ./common/drivers/Makefile
-          fi
-          
-          # 获取版本信息
-          cd YukiSU
-          GIT_COMMIT_HASH=$(git rev-parse --short=8 HEAD)
-          echo "当前提交哈希: $GIT_COMMIT_HASH"
-          
-          KSU_API_VERSION=$(grep -m1 "KSU_VERSION_API :=" kernel/Kbuild | awk -F'= ' '{print $2}' | tr -d '[:space:]')
-          [ -z "$KSU_API_VERSION" ] && KSU_API_VERSION="1.2.0"
-          echo "API 版本: $KSU_API_VERSION"
-          echo "KSU_API_VERSION=$KSU_API_VERSION" >> $GITHUB_ENV
-          
-          # 创建版本定义
-          VERSION_DEFINITIONS=$'define get_ksu_version_full\nv\\$1-'"$GIT_COMMIT_HASH"$'@Anatdx\nendef\n\nKSU_VERSION_API := '"$KSU_API_VERSION"$'\nKSU_VERSION_FULL := v'"$KSU_API_VERSION"$'-'"$GIT_COMMIT_HASH"$'@Anatdx'
-          
-          KBUILD_FILE="../common/drivers/kernelsu/Kbuild"
-          sed -i '/define get_ksu_version_full/,/endef/d' "$KBUILD_FILE"
-          sed -i '/KSU_VERSION_API :=/d' "$KBUILD_FILE"
-          sed -i '/KSU_VERSION_FULL :=/d' "$KBUILD_FILE"
-          awk -v def="$VERSION_DEFINITIONS" '
-              /REPO_OWNER :=/ {print; print def; inserted=1; next}
-              1
-              END {if (!inserted) print def}
-          ' "$KBUILD_FILE" > "${KBUILD_FILE}.tmp" && mv "${KBUILD_FILE}.tmp" "$KBUILD_FILE"
-          
-          # 版本号
-          KSU_VERSION=$(expr $(git rev-list --count main 2>/dev/null) + 6865 2>/dev/null || echo 114514)
-          echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
-          echo "ksuver=$KSU_VERSION" >> $GITHUB_OUTPUT
-          
-          echo ">>> 验证结果："
-          grep -A5 "REPO_OWNER" "$KBUILD_FILE" | head -n 8
-          echo "YukiSU版本号: v${KSU_API_VERSION}-${GIT_COMMIT_HASH}@Anatdx"
-
-      - name: 应用 KSU + HymoFS 统一补丁
+      - name: 应用HymoFS补丁
         run: |
           cd kernel_workspace/common
-          echo "正在应用 KSU + HymoFS 统一补丁..."
+          echo "HymoFS补丁..."
           cp ${{ github.workspace }}/patch/hymofs.patch .
           patch -p1 -F 3 < hymofs.patch || true
           echo "  [*] 补丁应用完成！"
@@ -175,12 +124,8 @@ jobs:
           cd kernel_workspace
           DEFCONFIG=./common/arch/arm64/configs/gki_defconfig
           
-          # KSU 配置
-          echo "CONFIG_KSU=y" >> "$DEFCONFIG"
-          
           # HymoFS 配置
-          echo "CONFIG_KSU_HYMOFS_LSMBPS=y" >> "$DEFCONFIG"
-          echo "CONFIG_KSU_HYMOFS=y" >> "$DEFCONFIG"
+          echo "CONFIG_HYMOFS=y" >> "$DEFCONFIG"
           
           # Mountify 支持
           echo "CONFIG_TMPFS_XATTR=y" >> "$DEFCONFIG"
@@ -331,7 +276,7 @@ jobs:
       - name: "🧠 Set Artifact Name | 设置产物名称"
         id: set_name
         run: |
-          echo "ARTIFACT_NAME=Anykernel3_YukiSU_HymoFS_${{ env.KSUVER }}_MT6991" >> $GITHUB_OUTPUT
+          echo "ARTIFACT_NAME=Anykernel3_HymoFS_MT6991" >> $GITHUB_OUTPUT
 
       - name: 克隆 AnyKernel3 并打包
         run: |
@@ -400,5 +345,5 @@ jobs:
           KPM: Off
           LZ4KD: Off
           BBR: Off
-          KSU_VAR: "YukiSU+HymoFS"
+          KSU_VAR: "没有"
 
